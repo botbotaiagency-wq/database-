@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Search, Plus, Edit3, Trash2, Phone, Building2, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Search, Plus, Edit3, Trash2, Phone, Building2, X, ChevronDown } from 'lucide-react'
 
 const PIPELINE_OPTIONS = [
   { value: 'lead', label: 'New Lead' },
@@ -18,6 +18,51 @@ const PIPELINE_LABELS = Object.fromEntries(PIPELINE_OPTIONS.map(p => [p.value, p
 
 const emptyForm = { name: '', phone: '', business: '', system: '', status: '', remarks: '', revenue: 0, pipeline: 'lead' }
 
+function ComboBox({ value, onChange, options, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = options.filter(o =>
+    o.toLowerCase().includes((value || '').toLowerCase())
+  )
+
+  return (
+    <div className="combobox-wrap" ref={ref}>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+      />
+      <button type="button" className="combobox-toggle" onClick={() => setOpen(!open)}>
+        <ChevronDown size={14} />
+      </button>
+      {open && filtered.length > 0 && (
+        <div className="combobox-dropdown">
+          {filtered.map((opt, i) => (
+            <button
+              key={i}
+              type="button"
+              className="combobox-option"
+              onClick={() => { onChange(opt); setOpen(false) }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Contacts() {
   const [contacts, setContacts] = useState([])
   const [search, setSearch] = useState('')
@@ -31,6 +76,11 @@ export default function Contacts() {
   }
 
   useEffect(() => { loadContacts() }, [])
+
+  // Extract unique values for smart toggles
+  const uniqueBusinesses = [...new Set(contacts.map(c => c.business).filter(Boolean))]
+  const uniqueSystems = [...new Set(contacts.map(c => c.system).filter(Boolean))]
+  const uniqueStatuses = [...new Set(contacts.map(c => c.status).filter(Boolean))]
 
   const filtered = contacts.filter(c => {
     const matchesSearch = !search ||
@@ -188,7 +238,7 @@ export default function Contacts() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ margin: 0 }}>{editingContact ? 'Edit Contact' : 'New Contact'}</h3>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowModal(false)}><X size={16} /></button>
             </div>
@@ -203,11 +253,21 @@ export default function Contacts() {
               </div>
               <div className="form-group">
                 <label>Business</label>
-                <input value={form.business} onChange={e => setForm({...form, business: e.target.value})} />
+                <ComboBox
+                  value={form.business}
+                  onChange={v => setForm({...form, business: v})}
+                  options={uniqueBusinesses}
+                  placeholder="Type or select business..."
+                />
               </div>
               <div className="form-group">
                 <label>System / Service</label>
-                <input value={form.system} onChange={e => setForm({...form, system: e.target.value})} />
+                <ComboBox
+                  value={form.system}
+                  onChange={v => setForm({...form, system: v})}
+                  options={uniqueSystems}
+                  placeholder="Type or select system..."
+                />
               </div>
               <div className="form-group">
                 <label>Pipeline Stage</label>
@@ -219,7 +279,12 @@ export default function Contacts() {
               </div>
               <div className="form-group">
                 <label>Status</label>
-                <input value={form.status} onChange={e => setForm({...form, status: e.target.value})} />
+                <ComboBox
+                  value={form.status}
+                  onChange={v => setForm({...form, status: v})}
+                  options={uniqueStatuses}
+                  placeholder="Type or select status..."
+                />
               </div>
               <div className="form-group">
                 <label>Revenue (RM)</label>

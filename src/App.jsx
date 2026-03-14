@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import Dashboard from './components/Dashboard'
 import Contacts from './components/Contacts'
 import Pipeline from './components/Pipeline'
+import Chatbot from './components/Chatbot'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/pipeline" element={<Pipeline />} />
         </Routes>
       </main>
+      <Chatbot />
     </div>
   )
 }

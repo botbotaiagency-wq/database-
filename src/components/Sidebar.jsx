@@ -13,7 +13,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <h1><span className="nex">NEX</span><span className="crm">CRM</span></h1>
+        <h1><span className="icebrg">ICEBRG</span><span className="crm">CRM</span></h1>
       </div>
       <nav className="sidebar-nav">
         {navItems.map(item => (
@@ -29,7 +29,7 @@ export default function Sidebar() {
       </nav>
       <div className="sidebar-footer">
         <TrendingUp size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-        NexCRM v1.0 &mdash; Sales Dashboard
+        IcebrgCRM v1.0 &mdash; Sales Dashboard
       </div>
     </aside>
   )
