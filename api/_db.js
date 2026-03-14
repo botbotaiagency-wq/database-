@@ -11,14 +11,18 @@ async function getRedis() {
   if (redisChecked) return redis;
   redisChecked = true;
 
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+  const url = process.env.KV_REST_API_URL;
+  const token = process.env.KV_REST_API_TOKEN;
+
+  if (url && token) {
     try {
-      const { Redis } = await import('@upstash/redis');
-      redis = new Redis({
-        url: process.env.KV_REST_API_URL,
-        token: process.env.KV_REST_API_TOKEN,
-      });
+      const mod = await import('@upstash/redis');
+      const Redis = mod.Redis || mod.default?.Redis;
+      if (Redis) {
+        redis = new Redis({ url, token });
+      }
     } catch (e) {
+      console.error('Redis init failed:', e.message);
       redis = null;
     }
   }
@@ -26,7 +30,12 @@ async function getRedis() {
 }
 
 function loadFromFile() {
-  return JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
+  try {
+    return JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
+  } catch (e) {
+    console.error('File read failed:', e.message);
+    return [];
+  }
 }
 
 export async function loadData() {
@@ -37,10 +46,13 @@ export async function loadData() {
       let data = await db.get(CONTACTS_KEY);
       if (!data) {
         data = loadFromFile();
-        await db.set(CONTACTS_KEY, data);
+        if (data.length > 0) {
+          await db.set(CONTACTS_KEY, data);
+        }
       }
       return data;
     } catch (e) {
+      console.error('Redis load failed:', e.message);
       return loadFromFile();
     }
   }
@@ -51,6 +63,10 @@ export async function loadData() {
 export async function saveData(data) {
   const db = await getRedis();
   if (db) {
-    await db.set(CONTACTS_KEY, data);
+    try {
+      await db.set(CONTACTS_KEY, data);
+    } catch (e) {
+      console.error('Redis save failed:', e.message);
+    }
   }
 }
