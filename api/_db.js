@@ -1,36 +1,56 @@
-import { Redis } from '@upstash/redis';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-let redis;
+const DATA_PATH = join(process.cwd(), 'server', 'data.json');
+const CONTACTS_KEY = 'contacts';
 
-function getRedis() {
-  if (!redis) {
-    redis = new Redis({
-      url: process.env.KV_REST_API_URL,
-      token: process.env.KV_REST_API_TOKEN,
-    });
+let redis = null;
+let redisChecked = false;
+
+async function getRedis() {
+  if (redisChecked) return redis;
+  redisChecked = true;
+
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    try {
+      const { Redis } = await import('@upstash/redis');
+      redis = new Redis({
+        url: process.env.KV_REST_API_URL,
+        token: process.env.KV_REST_API_TOKEN,
+      });
+    } catch (e) {
+      redis = null;
+    }
   }
   return redis;
 }
 
-const CONTACTS_KEY = 'contacts';
+function loadFromFile() {
+  return JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
+}
 
 export async function loadData() {
-  const db = getRedis();
-  let data = await db.get(CONTACTS_KEY);
+  const db = await getRedis();
 
-  // If Redis is empty, seed from data.json
-  if (!data) {
-    const DATA_PATH = join(process.cwd(), 'server', 'data.json');
-    data = JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
-    await db.set(CONTACTS_KEY, data);
+  if (db) {
+    try {
+      let data = await db.get(CONTACTS_KEY);
+      if (!data) {
+        data = loadFromFile();
+        await db.set(CONTACTS_KEY, data);
+      }
+      return data;
+    } catch (e) {
+      return loadFromFile();
+    }
   }
 
-  return data;
+  return loadFromFile();
 }
 
 export async function saveData(data) {
-  const db = getRedis();
-  await db.set(CONTACTS_KEY, data);
+  const db = await getRedis();
+  if (db) {
+    await db.set(CONTACTS_KEY, data);
+  }
 }
