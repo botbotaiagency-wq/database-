@@ -1,13 +1,6 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { loadData } from './_db.js';
 
-const DATA_PATH = join(process.cwd(), 'server', 'data.json');
-
-function loadData() {
-  return JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
-}
-
-export default function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -17,7 +10,7 @@ export default function handler(req, res) {
   }
 
   try {
-    const data = loadData();
+    const data = await loadData();
     const totalContacts = data.length;
     const totalRevenue = data.reduce((sum, c) => sum + c.revenue, 0);
     const activeDeals = data.filter(c => ['closing', 'demo', 'follow_up', 'opportunity'].includes(c.pipeline)).length;

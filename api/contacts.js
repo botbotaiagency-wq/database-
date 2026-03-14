@@ -1,19 +1,8 @@
-import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { loadData, saveData } from './_db.js';
 
-const DATA_PATH = join(process.cwd(), 'server', 'data.json');
-
-function loadData() {
-  return JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
-}
-
-function saveData(data) {
-  writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-}
-
-export default function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -21,7 +10,7 @@ export default function handler(req, res) {
   }
 
   try {
-    const data = loadData();
+    const data = await loadData();
 
     if (req.method === 'GET') {
       return res.status(200).json(data);
@@ -40,7 +29,7 @@ export default function handler(req, res) {
         pipeline: req.body.pipeline || 'lead'
       };
       data.push(newContact);
-      saveData(data);
+      await saveData(data);
       return res.status(201).json(newContact);
     }
 

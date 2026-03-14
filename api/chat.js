@@ -1,11 +1,4 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
-const DATA_PATH = join(process.cwd(), 'server', 'data.json');
-
-function loadData() {
-  return JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
-}
+import { loadData, saveData } from './_db.js';
 
 const SYSTEM_PROMPT = `You are ICEBRG, the AI sales intelligence engine built into IcebrgCRM. You think like a senior sales strategist with full visibility into the pipeline.
 
@@ -30,6 +23,25 @@ INTELLIGENCE RULES:
 7. NEXT BEST ACTION: For any contact or deal query, end with a specific recommended action.
 8. FOLLOW-UP URGENCY: Contacts in follow_up or demo stages with revenue > 0 are HIGH PRIORITY.
 
+CRM ACTIONS:
+You can modify the CRM by including action commands in your response. When you want to perform an action, include it in a JSON block at the END of your response using this exact format:
+
+\`\`\`actions
+[{"action":"update","id":10,"fields":{"pipeline":"won","status":"Deal closed"}},{"action":"create","fields":{"name":"New Lead","business":"Tech Co","pipeline":"lead"}},{"action":"delete","id":5}]
+\`\`\`
+
+Available actions:
+- UPDATE: {"action":"update","id":<contactId>,"fields":{...fields to update...}}
+- CREATE: {"action":"create","fields":{"name":"...","business":"...","phone":"...","system":"...","status":"...","remarks":"...","revenue":0,"pipeline":"lead"}}
+- DELETE: {"action":"delete","id":<contactId>}
+
+IMPORTANT ACTION RULES:
+- Always confirm with the user BEFORE including destructive actions (delete, marking as dead)
+- For updates, explain what you're changing and why
+- You can batch multiple actions in one response
+- After actions, briefly confirm what was done
+- Only include the actions block when you are EXECUTING an action, not when discussing possibilities
+
 RESPONSE FORMAT:
 - Lead with the insight, not the explanation
 - Use bullet points for lists
@@ -44,6 +56,10 @@ CAPABILITIES:
 - Action recommendations (who to call, what to push)
 - Revenue forecasting and win rate
 - Ghost/MIA detection
+- Create, update, and delete contacts
+- Move deals between pipeline stages
+- Update status, revenue, remarks
+- Bulk suggestions for pipeline cleanup
 
 BOUNDARIES:
 - Only discuss CRM data. Redirect off-topic: "I'm built for sales intelligence. Ask me about your pipeline, deals, or contacts."
@@ -74,7 +90,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const contacts = loadData();
+    const contacts = await loadData();
     const contextMsg = `Current CRM Database (${contacts.length} contacts):\n${JSON.stringify(contacts, null, 0)}`;
 
     const apiMessages = [
@@ -105,13 +121,60 @@ export default async function handler(req, res) {
     const data = await response.json();
     const reply = data.choices?.[0]?.message?.content || 'No response from ICEBRG.';
 
-    // Note: Vercel is read-only, so CRM actions won't execute here
-    // Strip any actions block from the reply
+    // Parse and execute CRM actions
+    const actionsMatch = reply.match(/```actions\n([\s\S]*?)\n```/);
+    let executedActions = [];
+    if (actionsMatch) {
+      try {
+        const actions = JSON.parse(actionsMatch[1]);
+        const crmData = await loadData();
+
+        for (const act of actions) {
+          if (act.action === 'update' && act.id && act.fields) {
+            const idx = crmData.findIndex(c => c.id === act.id);
+            if (idx !== -1) {
+              Object.assign(crmData[idx], act.fields);
+              if (act.fields.revenue !== undefined) {
+                crmData[idx].revenue = parseFloat(act.fields.revenue) || 0;
+              }
+              executedActions.push({ action: 'updated', id: act.id, name: crmData[idx].name });
+            }
+          } else if (act.action === 'create' && act.fields) {
+            const newContact = {
+              id: Math.max(...crmData.map(c => c.id), 0) + 1,
+              name: act.fields.name || '',
+              phone: act.fields.phone || '',
+              business: act.fields.business || '',
+              system: act.fields.system || '',
+              status: act.fields.status || '',
+              remarks: act.fields.remarks || '',
+              revenue: parseFloat(act.fields.revenue) || 0,
+              pipeline: act.fields.pipeline || 'lead'
+            };
+            crmData.push(newContact);
+            executedActions.push({ action: 'created', id: newContact.id, name: newContact.name });
+          } else if (act.action === 'delete' && act.id) {
+            const idx = crmData.findIndex(c => c.id === act.id);
+            if (idx !== -1) {
+              executedActions.push({ action: 'deleted', id: act.id, name: crmData[idx].name });
+              crmData.splice(idx, 1);
+            }
+          }
+        }
+
+        if (executedActions.length > 0) {
+          await saveData(crmData);
+        }
+      } catch (e) {
+        // Failed to parse actions — ignore
+      }
+    }
+
     const cleanReply = reply.replace(/```actions\n[\s\S]*?\n```/g, '').trim();
 
     return res.status(200).json({
       reply: cleanReply,
-      actions: []
+      actions: executedActions
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
