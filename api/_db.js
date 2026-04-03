@@ -6,8 +6,10 @@ const DATA_PATH = join(process.cwd(), 'server', 'data.json');
 const CONTACTS_KEY = 'contacts';
 
 let redis = null;
+let redisOk = true;
 
 function getRedis() {
+  if (!redisOk) return null;
   if (redis) return redis;
 
   const url = process.env.KV_REST_API_URL;
@@ -43,6 +45,7 @@ export async function loadData() {
       return data;
     } catch (e) {
       console.error('Redis load failed:', e.message);
+      redisOk = false;
       return loadFromFile();
     }
   }
@@ -53,8 +56,11 @@ export async function loadData() {
 export async function saveData(data) {
   const db = getRedis();
   if (db) {
-    await db.set(CONTACTS_KEY, data);
-  } else {
-    console.error('saveData: no Redis connection, data not persisted');
+    try {
+      await db.set(CONTACTS_KEY, data);
+    } catch (e) {
+      console.error('Redis save failed:', e.message);
+      redisOk = false;
+    }
   }
 }
