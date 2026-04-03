@@ -5,34 +5,25 @@ import { join } from 'path';
 const DATA_PATH = join(process.cwd(), 'server', 'data.json');
 const CONTACTS_KEY = 'contacts';
 
-let redis = null;
-let redisOk = true;
-
 function getRedis() {
-  if (!redisOk) return null;
-  if (redis) return redis;
-
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (url && token) {
-    redis = new Redis({ url, token });
+    return new Redis({ url, token });
   }
-  return redis;
+  return null;
 }
 
 function loadFromFile() {
   try {
     return JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
   } catch (e) {
-    console.error('File read failed:', e.message);
     return [];
   }
 }
 
 export async function loadData() {
   const db = getRedis();
-
   if (db) {
     try {
       let data = await db.get(CONTACTS_KEY);
@@ -44,23 +35,16 @@ export async function loadData() {
       }
       return data;
     } catch (e) {
-      console.error('Redis load failed:', e.message);
-      redisOk = false;
+      console.error('Redis load error:', e.message);
       return loadFromFile();
     }
   }
-
   return loadFromFile();
 }
 
 export async function saveData(data) {
   const db = getRedis();
   if (db) {
-    try {
-      await db.set(CONTACTS_KEY, data);
-    } catch (e) {
-      console.error('Redis save failed:', e.message);
-      redisOk = false;
-    }
+    await db.set(CONTACTS_KEY, data);
   }
 }
