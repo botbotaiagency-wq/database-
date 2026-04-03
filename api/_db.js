@@ -5,11 +5,14 @@ import { join } from 'path';
 const DATA_PATH = join(process.cwd(), 'server', 'data.json');
 const CONTACTS_KEY = 'contacts';
 
+// Hardcoded Upstash Redis config as fallback since Vercel Storage
+// integration env vars point to a broken host
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || 'https://tight-gorilla-91433.upstash.io';
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || 'gQAAAAAAAWUpAAIncDE5ZWRmMzFiNjlhOWY0YmU0YjY3ZDZjNGUzMWU3ODI1NXAxOTE0MzM';
+
 function getRedis() {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (url && token) {
-    return new Redis({ url, token });
+  if (REDIS_URL && REDIS_TOKEN) {
+    return new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
   }
   return null;
 }
