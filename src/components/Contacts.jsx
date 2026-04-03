@@ -105,21 +105,24 @@ export default function Contacts() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (editingContact) {
-      await fetch(`/api/contacts/${editingContact.id}`, {
-        method: 'PUT',
+    try {
+      const url = editingContact ? `/api/contacts/${editingContact.id}` : '/api/contacts'
+      const method = editingContact ? 'PUT' : 'POST'
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       })
-    } else {
-      await fetch('/api/contacts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      })
+      if (!res.ok) {
+        const err = await res.text()
+        alert(`Save failed: ${err}`)
+        return
+      }
+      setShowModal(false)
+      loadContacts()
+    } catch (err) {
+      alert(`Network error: ${err.message}`)
     }
-    setShowModal(false)
-    loadContacts()
   }
 
   const handleDelete = async (id) => {
